@@ -1,7 +1,7 @@
 // Creating s3
 
 resource "aws_s3_bucket" "public_site" {
-  bucket = "public-site-challenge"
+  bucket = "public-site-step2"
   acl    = "public-read"
 
   website {
