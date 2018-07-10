@@ -14,17 +14,17 @@ $ export AWS_SECRET_ACCESS_KEY="asecretkey"
 $ export AWS_DEFAULT_REGION="us-west-2"  
 
 Atribuir as variaveis no arquivo network.tf  
-provider "aws" {
-  region     = "us-west-2"
-  access_key = "anaccesskey"
-  secret_key = "asecretkey"
-}
+provider "aws" {  
+  region     = "us-west-2"  
+  access_key = "anaccesskey"  
+  secret_key = "asecretkey"  
+}  
 
 Ou ter instalado o aws cli e executado o comando:  
-aws configure
+aws configure  
 
-Para verificar o que será criado antes da aplicação desse template:
-terraform plan
+Para verificar o que será criado antes da aplicação desse template:  
+terraform plan  
 
-Para a execução desse template:
-terraform init
+Para a execução desse template:  
+terraform init  
