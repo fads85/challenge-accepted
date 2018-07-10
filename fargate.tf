@@ -46,7 +46,6 @@ resource "aws_ecs_service" "nginx-site" {
     container_name   = "nginx-site"
     container_port   = 80
   }
-
   depends_on = [
     "aws_alb_listener.nginx-site",
   ]
@@ -78,7 +77,9 @@ resource "aws_security_group" "fargate_tasks" {
   name        = "SG-fargate"
   description = "allow inbound access from the ALB only"
   vpc_id      = "${aws_vpc.VPC_Terraform.id}"
-
+  lifecycle {
+    create_before_destroy = true
+  }
   ingress {
     protocol        = "tcp"
     from_port       = 80
@@ -98,6 +99,9 @@ resource "aws_alb" "nginx-fargate" {
   name            = "alb-nginx"
   subnets         = ["${aws_subnet.subnet.id}", "${aws_subnet.subnet1.id}"]
   security_groups = ["${aws_security_group.ALB.id}"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_alb_target_group" "tg-nginx" {
@@ -106,6 +110,9 @@ resource "aws_alb_target_group" "tg-nginx" {
   protocol    = "HTTP"
   vpc_id      = "${aws_vpc.VPC_Terraform.id}"
   target_type = "ip"
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Redirect all traffic from the ALB to the target group
@@ -118,4 +125,77 @@ resource "aws_alb_listener" "nginx-site" {
     target_group_arn = "${aws_alb_target_group.tg-nginx.id}"
     type             = "forward"
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_appautoscaling_target" "nginx" {
+  service_namespace  = "ecs"
+  resource_id        = "service/${aws_ecs_cluster.challenge.name}/${aws_ecs_service.nginx-site.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  min_capacity       = 1
+  max_capacity       = 4
+}
+
+resource "aws_appautoscaling_policy" "nginx-up" {
+  name                    = "nginx_scale_up"
+  service_namespace       = "ecs"
+  resource_id             = "service/${aws_ecs_cluster.challenge.name}/${aws_ecs_service.nginx-site.name}"
+  scalable_dimension      = "ecs:service:DesiredCount"
+
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 60
+    metric_aggregation_type = "Maximum"
+
+    step_adjustment {
+      metric_interval_lower_bound = 0
+      scaling_adjustment = 1
+    }
+  }
+
+  depends_on = ["aws_appautoscaling_target.nginx"]
+}
+
+resource "aws_appautoscaling_policy" "nginx-down" {
+  name                    = "nginx_scale_down"
+  service_namespace       = "ecs"
+  resource_id             = "service/${aws_ecs_cluster.challenge.name}/${aws_ecs_service.nginx-site.name}"
+  scalable_dimension      = "ecs:service:DesiredCount"
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 60
+    metric_aggregation_type = "Maximum"
+
+    step_adjustment {
+      metric_interval_lower_bound = 0
+      scaling_adjustment = -1
+    }
+  }
+
+  depends_on = ["aws_appautoscaling_target.nginx"]
+}
+
+/* metric used for auto scale */
+resource "aws_cloudwatch_metric_alarm" "memory_half" {
+  alarm_name          = "fargate_nginx_memory_utilization_high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = "60"
+  statistic           = "Maximum"
+  threshold           = "50"
+
+  dimensions {
+    ClusterName = "${aws_ecs_cluster.challenge.name}"
+    ServiceName = "${aws_ecs_service.nginx-site.name}"
+  }
+
+  alarm_actions = ["${aws_appautoscaling_policy.nginx-up.arn}"]
+  ok_actions    = ["${aws_appautoscaling_policy.nginx-down.arn}"]
 }
