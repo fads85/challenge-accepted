@@ -13,7 +13,7 @@ resource "aws_ecs_task_definition" "nginx" {
 [
   {
     "cpu": 512,
-    "image": "nginx",
+    "image": "ugat/challenge-accepted",
     "memory": 1024,
     "name": "nginx-site",
     "networkMode": "awsvpc",
