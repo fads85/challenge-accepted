@@ -47,6 +47,9 @@ resource "aws_ecs_service" "nginx-site" {
     container_port   = 80
   }
 
+  depends_on = [
+    "aws_alb_listener.nginx-site",
+  ]
 }
 
 # ALB Security group
